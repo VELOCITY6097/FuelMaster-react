@@ -63,7 +63,7 @@ const About = () => {
                     <div className="icon-box orange"><Globe size={20} /></div>
                     <div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>REGION</div>
-                        <div style={{ fontWeight: 600 }}>{station?.location || 'India'}</div>
+                        <div style={{ fontWeight: 600 }}>India</div>
                     </div>
                 </div>
 
@@ -85,5 +85,6 @@ const About = () => {
     </div>
   );
 };
+
 
 export default About;
