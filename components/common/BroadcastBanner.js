@@ -3,17 +3,25 @@ import { Info, AlertTriangle, AlertOctagon, X } from 'lucide-react';
 
 const BroadcastBanner = ({ msg, type = 'info', updatedAt }) => {
   const [showPopup, setShowPopup] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
 
-  // 🔁 Reset dismissal whenever broadcast changes
+  // 🔁 React to new Broadcasts instantly
   useEffect(() => {
     if (msg) {
-      setIsDismissed(false);
+      // 1. Hide briefly to reset animation state
+      setIsVisible(false);
       setShowPopup(false);
+      
+      // 2. Show again after a split second
+      const timer = setTimeout(() => {
+          setIsVisible(true);
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
-  }, [msg, type, updatedAt]);
+  }, [updatedAt, msg]); // 🔥 Dependent on timestamp from DB
 
-  if (!msg || isDismissed) return null;
+  if (!msg || !isVisible) return null;
 
   const icons = {
     info: <Info size={20} />,
@@ -25,8 +33,8 @@ const BroadcastBanner = ({ msg, type = 'info', updatedAt }) => {
 
   return (
     <>
+      {/* Banner Strip */}
       <div
-        key={updatedAt} // 🔥 forces animation restart
         className={`broadcast-banner ${type} animate__animated animate__slideInDown`}
         onClick={() => setShowPopup(true)}
       >
@@ -46,68 +54,31 @@ const BroadcastBanner = ({ msg, type = 'info', updatedAt }) => {
           className="broadcast-close"
           onClick={(e) => {
             e.stopPropagation();
-            setIsDismissed(true);
+            setIsVisible(false);
           }}
         >
           <X size={20} />
         </button>
       </div>
 
+      {/* Popup Modal */}
       {showPopup && (
-        <div
-          className="custom-alert-overlay"
-          style={{ display: 'flex', zIndex: 100002 }}
-        >
+        <div className="custom-alert-overlay" style={{ display: 'flex', zIndex: 100002 }}>
           <div className="broadcast-popup-card animate__animated animate__zoomIn">
-            <div
-              className={`broadcast-popup-header ${type}`}
-              style={{
-                padding: 20,
-                display: 'flex',
-                gap: 10,
-                alignItems: 'center',
-                color: 'white'
-              }}
-            >
+            <div className={`broadcast-popup-header ${type}`} style={{ padding: 20, display: 'flex', gap: 10, alignItems: 'center', color: 'white' }}>
               {selectedIcon}
               <h3 style={{ margin: 0, flex: 1 }}>System Broadcast</h3>
-              <button
-                onClick={() => setShowPopup(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
+              <button onClick={() => setShowPopup(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
                 <X />
               </button>
             </div>
 
-            <div
-              className="broadcast-popup-body"
-              style={{
-                padding: 25,
-                whiteSpace: 'pre-wrap',
-                lineHeight: 1.6
-              }}
-            >
+            <div className="broadcast-popup-body" style={{ padding: 25, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
               {msg}
             </div>
 
-            <div
-              className="broadcast-popup-footer"
-              style={{
-                padding: 15,
-                display: 'flex',
-                justifyContent: 'flex-end'
-              }}
-            >
-              <button
-                className="primary-btn"
-                onClick={() => setShowPopup(false)}
-                style={{ width: 'auto', padding: '10px 25px' }}
-              >
+            <div className="broadcast-popup-footer" style={{ padding: 15, display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="primary-btn" onClick={() => setShowPopup(false)} style={{ width: 'auto', padding: '10px 25px' }}>
                 Close
               </button>
             </div>
