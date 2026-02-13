@@ -1,0 +1,6 @@
+{
+  "appId": "com.velocity6097.fuelmaster",
+  "appName": "FuelMaster",
+  "webDir": "build",
+  "bundledWebRuntime": false
+}
