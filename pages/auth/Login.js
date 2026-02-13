@@ -18,11 +18,11 @@ const Login = () => {
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true });
     
-    // Auto-fill
+    // Auto-fill (Only runs if user is NOT logged in)
     const savedId = localStorage.getItem('fm_saved_id');
     const savedPass = localStorage.getItem('fm_saved_pass');
-    if (savedId && savedPass) {
-        setId(savedId);
+    if (savedId) setId(savedId); // Always fill ID if available
+    if (savedPass) {
         setPass(savedPass);
         setRemember(true);
     }
@@ -31,17 +31,22 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true); // Start loading animation
+    setLoading(true); 
     
     try {
-      await login(id, pass); // 'remember' is handled inside component state, not passed to context anymore
+      await login(id, pass); 
       
-      // Save for next time if checked
+      // --- FIXED LOGIC HERE ---
+      // We ALWAYS keep 'fm_saved_id' because AuthContext needs it for the session.
+      // We only manage 'fm_saved_pass' based on the checkbox.
+      
       if (remember) {
-          localStorage.setItem('fm_saved_id', id);
           localStorage.setItem('fm_saved_pass', pass);
+          // Note: AuthContext already saves fm_saved_id, so we don't strictly need to do it here,
+          // but doing it again doesn't hurt.
       } else {
-          localStorage.removeItem('fm_saved_id');
+          // Only remove the password. 
+          // DO NOT remove 'fm_saved_id' or you break the refresh capability.
           localStorage.removeItem('fm_saved_pass');
       }
 
@@ -49,7 +54,7 @@ const Login = () => {
     } catch (err) {
       console.error(err);
       setError(err.message || "Connection Failed. Please try again.");
-      setLoading(false); // Stop loading so user can try again
+      setLoading(false); 
     }
   };
 
