@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../../components/common/Navbar';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { Trash2, Plus, User, ShieldAlert } from 'lucide-react';
+import { Trash2, Plus, User } from 'lucide-react';
 
 const Staff = () => {
-  const { station, showAlert, showToast } = useAuth(); // 🔥 Get showAlert from Context
+  const { station, showAlert, showToast } = useAuth(); 
   const [staffList, setStaffList] = useState([]);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -46,13 +46,11 @@ const Staff = () => {
     }
   };
 
-  // 🔥 FIXED: Using the custom popup for deletion
   const removeStaff = (id, name) => {
     showAlert(
       `Are you sure you want to remove ${name}? This action cannot be undone.`,
       "Confirm Deletion",
       async () => {
-        // This code only runs if the user clicks "OK" in your custom popup
         const { error } = await supabase.from('staff').delete().eq('id', id);
         if (error) {
           showAlert(error.message, "Error");
@@ -72,16 +70,34 @@ const Staff = () => {
             <h3>Add New Staff</h3>
             <div className="input-group" style={{marginTop: 15}}>
                 <label>Staff Name</label>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Rahul Kumar" />
+                <input 
+                  value={newName} 
+                  onChange={e => setNewName(e.target.value)} 
+                  placeholder="e.g. Rahul Kumar" 
+                  autoComplete="off" 
+                />
             </div>
             <div style={{display:'flex', gap:10}}>
                 <div className="input-group" style={{flex: 1}}>
                     <label>Phone / Login ID</label>
-                    <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Phone Number" type="tel" />
+                    <input 
+                      value={newPhone} 
+                      onChange={e => setNewPhone(e.target.value)} 
+                      placeholder="Phone Number" 
+                      type="tel" 
+                      autoComplete="one-time-code"
+                    />
                 </div>
                 <div className="input-group" style={{width: 100}}>
                     <label>PIN</label>
-                    <input value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="0000" type="password" maxLength="4" />
+                    <input 
+                      value={newPin} 
+                      onChange={e => setNewPin(e.target.value)} 
+                      placeholder="0000" 
+                      type="password" 
+                      maxLength="4" 
+                      autoComplete="new-password" 
+                    />
                 </div>
             </div>
             <button onClick={addStaff} className="primary-btn" style={{marginTop:5}}>

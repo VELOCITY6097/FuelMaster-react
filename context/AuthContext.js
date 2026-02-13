@@ -6,31 +6,11 @@ const AuthContext = createContext();
 
 // --- BRAND THEMES ---
 const THEMES = {
-    'bpcl': { 
-        primary: '#fbbf24',    // BPCL Yellow
-        secondary: '#005ba3',  // BPCL Blue
-        bg: '#fffbeb' 
-    }, 
-    'iocl': { 
-        primary: '#f97316',    // IOCL Orange
-        secondary: '#003366',  // IOCL Navy
-        bg: '#fff7ed' 
-    }, 
-    'hpcl': { 
-        primary: '#00418c',    // HPCL Blue
-        secondary: '#ed1c24',  // HPCL Red
-        bg: '#eff6ff' 
-    }, 
-    'jio': { 
-        primary: '#00a651',    // Jio Green
-        secondary: '#e9da32',  // BP Blue
-        bg: '#ecfdf5' 
-    },
-    'default': { 
-        primary: '#2563eb', 
-        secondary: '#1e3a8a', 
-        bg: '#eff6ff' 
-    }
+    'bpcl': { primary: '#fbbf24', secondary: '#005ba3', bg: '#fffbeb' }, 
+    'iocl': { primary: '#f97316', secondary: '#003366', bg: '#fff7ed' }, 
+    'hpcl': { primary: '#00418c', secondary: '#ed1c24', bg: '#eff6ff' }, 
+    'jio': { primary: '#00a651', secondary: '#e9da32', bg: '#ecfdf5' },
+    'default': { primary: '#2563eb', secondary: '#1e3a8a', bg: '#eff6ff' }
 };
 
 export const AuthProvider = ({ children }) => {
@@ -52,7 +32,6 @@ export const AuthProvider = ({ children }) => {
     setTimeout(() => setToast(null), 3000); 
   }, []);
 
-  // --- ASSET LOADING ---
   const loadAssets = async () => {
       try {
         const { data: c } = await supabase.from('system_assets').select('data').eq('key', 'tank_charts').single();
@@ -65,7 +44,6 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
-  // --- SYSTEM CHECK ---
   const runSystemCheck = async (force = false) => {
       if (sysStatus.pulse === 'green' && !force) return;
       setSysStatus(p => ({ ...p, pulse: 'yellow', text: 'SYNCING...' }));
@@ -97,21 +75,16 @@ export const AuthProvider = ({ children }) => {
       }
   };
 
-  // --- BROADCAST & SETTINGS HANDLER ---
   const applySystemSettings = useCallback((settings) => {
       if (!settings) return;
 
-      // 1. Handle Maintenance (Don't auto-logout on refresh, just set state)
-      if (settings.downtime_active) {
-          setMaintenance({ active: true });
-      } else {
-          setMaintenance({ active: false });
-      }
+      setMaintenance({ active: !!settings.downtime_active });
 
-      // 2. Handle Broadcast
-      if (settings.broadcast_msg && settings.broadcast_msg.trim() !== "") {
+      // FIX: Ensure immediate reflection of type change and handle blank msg removal
+      const msgContent = settings.broadcast_msg ? settings.broadcast_msg.trim() : "";
+      if (msgContent !== "") {
           setBroadcast({ 
-              msg: settings.broadcast_msg, 
+              msg: msgContent, 
               type: settings.broadcast_type || 'info',
               updatedAt: Date.now() 
           });
@@ -120,13 +93,31 @@ export const AuthProvider = ({ children }) => {
       }
   }, []);
 
-  // --- INITIALIZATION ---
   useEffect(() => {
       let broadcastSub = null;
 
       const initApp = async () => {
           try {
-              // A. Start Broadcast Listener Immediately
+              // 1. CACHE-FIRST PERSISTENCE (Fixes refresh logout)
+              const storedStationId = localStorage.getItem('fm_station_id');
+              const storedRole = localStorage.getItem('fm_user_role');
+              const savedId = localStorage.getItem('fm_saved_id');
+              const cachedData = localStorage.getItem('fm_station_data');
+
+              if (!storedStationId) {
+                  setLoading(false);
+                  return; 
+              }
+
+              // Instant Hydration
+              if (cachedData) {
+                  const data = JSON.parse(cachedData);
+                  setStation(data);
+                  setRole(storedRole || 'manager');
+                  setUser(storedRole === 'staff' ? { id: savedId || 'Staff', name: 'Staff Member' } : { id: data.manager_user, name: 'Manager' });
+              }
+
+              // 2. Settings Sync
               const { data: settings } = await supabase.from('system_settings').select('*').eq('id', 1).single();
               if (settings) applySystemSettings(settings);
 
@@ -137,45 +128,29 @@ export const AuthProvider = ({ children }) => {
                   )
                   .subscribe();
 
-              // B. Handle User Session
-              const storedStationId = localStorage.getItem('fm_station_id');
-              const storedRole = localStorage.getItem('fm_user_role');
-              const savedId = localStorage.getItem('fm_saved_id');
-
-              if (!storedStationId) {
-                  setLoading(false); // No user, stop loading
-                  return; 
-              }
-
-              // Fetch Station AND Tanks
+              // 3. Remote Session Verification
               const { data, error } = await supabase
                 .from('stations').select('*, tanks(*)').eq('station_id', storedStationId).single();
 
-              if (error || !data) {
-                  // Only clear session if strictly invalid, not on network error
-                  if (error.code === 'PGRST116') { // Record not found
+              if (error) {
+                  // Only clear session if record is explicitly missing (404/PGRST116)
+                  if (error.code === 'PGRST116') { 
                        localStorage.removeItem('fm_station_id');
+                       localStorage.removeItem('fm_station_data');
                        setUser(null);
                        setStation(null);
                   }
-                  throw new Error("Session Invalid");
+              } else if (data) {
+                  setStation(data);
+                  localStorage.setItem('fm_station_data', JSON.stringify(data));
+                  setRole(storedRole || 'manager');
+                  setUser(storedRole === 'staff' ? { id: savedId || 'Staff', name: 'Staff Member' } : { id: data.manager_user, name: 'Manager' });
+                  loadAssets();
               }
-
-              setStation(data);
-              setRole(storedRole || 'manager');
-              
-              if (storedRole === 'staff') {
-                   setUser({ id: savedId || 'Staff', name: 'Staff Member' });
-              } else {
-                   setUser({ id: data.manager_user, name: 'Manager' });
-              }
-
-              loadAssets();
           } catch (err) {
               console.error("Init Error:", err);
           } finally {
               setLoading(false);
-              // Remove Loader
               const loader = document.getElementById('app-loader');
               if(loader) {
                   loader.style.opacity = '0';
@@ -185,17 +160,12 @@ export const AuthProvider = ({ children }) => {
       };
 
       initApp();
-
-      return () => {
-          if (broadcastSub) supabase.removeChannel(broadcastSub);
-      };
+      return () => { if (broadcastSub) supabase.removeChannel(broadcastSub); };
   }, [applySystemSettings]);
 
-  // --- REAL-TIME STATION SYNC ---
   useEffect(() => {
     if(!station?.station_id) return;
     
-    // Apply Theme
     const t = THEMES[station.theme] || THEMES['default'];
     const root = document.documentElement.style;
     root.setProperty('--primary', t.primary);
@@ -205,24 +175,30 @@ export const AuthProvider = ({ children }) => {
 
     if(!sysStatus.checked) runSystemCheck();
 
-    // Sync Station Data
     const stationSub = supabase.channel(`station-updates-${station.station_id}`)
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'stations', filter: `station_id=eq.${station.station_id}` }, 
             (payload) => {
-                setStation(prev => ({ ...prev, ...payload.new })); 
+                setStation(prev => {
+                    const updated = { ...prev, ...payload.new };
+                    localStorage.setItem('fm_station_data', JSON.stringify(updated));
+                    return updated;
+                }); 
                 showToast("Station Data Updated");
             }
         ).subscribe();
 
-    // Sync Tank Data
     const tankSub = supabase.channel(`tank-updates-${station.station_id}`)
         .on('postgres_changes',
             { event: '*', schema: 'public', table: 'tanks', filter: `station_id=eq.${station.station_id}` },
             async () => {
                 const { data: newTanks } = await supabase.from('tanks').select('*').eq('station_id', station.station_id).order('tank_no');
                 if(newTanks) {
-                    setStation(prev => ({ ...prev, tanks: newTanks }));
+                    setStation(prev => {
+                        const updated = { ...prev, tanks: newTanks };
+                        localStorage.setItem('fm_station_data', JSON.stringify(updated));
+                        return updated;
+                    });
                     showToast("Tank Levels Updated");
                 }
             }
@@ -234,10 +210,9 @@ export const AuthProvider = ({ children }) => {
     };
   }, [station?.station_id, station?.theme]);
 
-  // --- LOGIN / LOGOUT ---
   const login = async (id, pass) => {
       if (!navigator.onLine) throw new Error("No Internet Connection");
-      let { data: stData, error } = await supabase.from('stations').select('*').eq('manager_user', id).eq('manager_pass', pass).maybeSingle();
+      let { data: stData } = await supabase.from('stations').select('*').eq('manager_user', id).eq('manager_pass', pass).maybeSingle();
       
       let finalRole = 'manager';
       let userInfo = { id: id, name: 'Manager' };
@@ -258,12 +233,11 @@ export const AuthProvider = ({ children }) => {
           stData.tanks = tanks || [];
       }
 
-      // Save to Storage
       localStorage.setItem('fm_station_id', stData.station_id);
       localStorage.setItem('fm_user_role', finalRole);
       localStorage.setItem('fm_saved_id', userInfo.id);
+      localStorage.setItem('fm_station_data', JSON.stringify(stData));
 
-      // Set State
       setRole(finalRole);
       setStation(stData);
       setUser(userInfo);
@@ -274,38 +248,24 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('fm_station_id');
     localStorage.removeItem('fm_user_role');
     localStorage.removeItem('fm_saved_id');
+    localStorage.removeItem('fm_station_data');
     setStation(null);
     setUser(null);
     window.location.href = '/login';
   };
 
-  const showAlert = (msg, title="Notice", onConfirm=null) => setAlertState({ show: true, msg, title, onConfirm });
-  const closeAlert = () => setAlertState({ show: false, msg: '', title: '', onConfirm: null });
-
   return (
-    <AuthContext.Provider value={{ user, station, role, systemAssets, maintenance, broadcast, sysStatus, loading, runSystemCheck, login, logout, showAlert, showToast }}>
+    <AuthContext.Provider value={{ user, station, role, systemAssets, maintenance, broadcast, sysStatus, loading, runSystemCheck, login, logout, showAlert: (msg, title, onConfirm) => setAlertState({ show: true, msg, title, onConfirm }), showToast }}>
       {!loading && children}
-      
-      {/* GLOBAL ALERTS */}
       {alertState.show && (
          <div className="custom-alert-overlay" style={{ display: 'flex' }}>
             <div className="custom-alert-box animate__animated animate__zoomIn">
                 <h3>{alertState.title}</h3>
                 <p>{alertState.msg}</p>
                 <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '20px' }}>
-                    {alertState.onConfirm && (
-                        <button className="secondary-btn" onClick={closeAlert}>Cancel</button>
-                    )}
-                    <button 
-                        className="custom-alert-btn" 
-                        style={{ background: 'var(--primary)', flex: 1 }} 
-                        onClick={() => { 
-                            if (alertState.onConfirm) alertState.onConfirm(); 
-                            closeAlert(); 
-                        }}
-                    >
-                        {alertState.onConfirm ? 'Confirm' : 'OK'}
-                    </button>
+                    {alertState.onConfirm && <button className="secondary-btn" onClick={() => setAlertState(p=>({...p, show:false}))}>Cancel</button>}
+                    <button className="custom-alert-btn" style={{ background: 'var(--primary)', flex: 1 }} 
+                        onClick={() => { if (alertState.onConfirm) alertState.onConfirm(); setAlertState(p=>({...p, show:false})); }}>Confirm</button>
                 </div>
             </div>
          </div>
