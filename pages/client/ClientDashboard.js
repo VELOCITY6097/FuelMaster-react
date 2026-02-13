@@ -25,7 +25,6 @@ const ClientDashboard = () => {
       <main className="main-content">
          
          {/* REAL-TIME BROADCAST BANNER */}
-         {/* Pass msg, type, and updatedAt to handle real-time sync and animations */}
          <BroadcastBanner 
             msg={broadcast?.msg} 
             type={broadcast?.type} 
@@ -42,7 +41,7 @@ const ClientDashboard = () => {
                     </span>
                 </div>
                 {/* Manual Sync Trigger */}
-                <button className="icon-btn-refresh" onClick={() => runSystemCheck(true)}>
+                <button className="icon-btn-refresh" onClick={runSystemCheck}>
                     <RefreshCw size={16}/>
                 </button>
             </div>
